@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Пути к твоим данным
-CSV_PATH = "../data/seniority-v2.csv" # Путь к размеченному CSV для Seniority
+CSV_PATH = "../data/seniority-v2.csv"  # Путь к размеченному CSV для Seniority
 OUT_PATH = "../data/seniority_lexicon.json"
 
 # Используем тот же набор шума, что и для департаментов
@@ -29,9 +29,12 @@ vec = TfidfVectorizer(
 X = vec.fit_transform(texts)
 terms = np.array(vec.get_feature_names_out())
 
-# 3. Считаем специфичность терминов для уровней Seniority
-lexicon = {}
+# 3. Считаем специфичность (существующий цикл)
+raw_lexicon = {}
+term_appearance_count = {} # Считаем, в скольких классах появилось слово
+
 for c in classes:
+    # ... расчет mean_in, mean_out, score ...
     in_mask = (df["label"].values == c)
     if not in_mask.any(): continue
     
@@ -46,12 +49,20 @@ for c in classes:
         if score[idx] <= 0 or len(term) < 3 or term in STOP:
             continue
         top_terms.append(term)
-        if len(top_terms) >= 50: # Для Seniority 50 слов на класс за глаза
+        term_appearance_count[term] = term_appearance_count.get(term, 0) + 1
+        if len(top_terms) >= 100: # Берем чуть больше для фильтрации
             break
-    lexicon[c] = top_terms
+    raw_lexicon[c] = top_terms
 
-# 4. Сохраняем
+# 4. Фильтруем: оставляем только те слова, которые специфичны ТОЛЬКО для одного класса
+final_lexicon = {}
+for label, terms_list in raw_lexicon.items():
+    # Оставляем слово, только если оно не встречается в 2+ классах одновременно
+    unique_terms = [t for t in terms_list if term_appearance_count[t] == 1]
+    final_lexicon[label] = unique_terms[:50]
+
+# 5. Сохраняем
 with open(OUT_PATH, "w", encoding="utf-8") as f:
-    json.dump(lexicon, f, ensure_ascii=False, indent=2)
+    json.dump(final_lexicon, f, ensure_ascii=False, indent=2)
 
 print(f"Seniority lexicon saved to {OUT_PATH}")
